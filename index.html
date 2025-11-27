@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="description" content="准妈妈产检时间表 - 输入末次月经日期，一键生成专属产检计划，包含胎儿发育、营养指南">
-  <meta name="keywords" content="产检,孕期,怀孕,产检时间表,孕妇,预产期,胎儿发育,孕期营养">
-  <meta name="theme-color" content="#FF6B95">
+  <meta name="description" content="准妈妈产检时间表">
   <title>准妈妈产检时间表</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤰</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
@@ -13,358 +11,570 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; background: #FFF5F7; padding-bottom: 40px; }
     input[type="date"] { -webkit-appearance: none; }
     button { -webkit-tap-highlight-color: transparent; }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .share-card-modal { animation: slideUp 0.3s ease-out; }
+    .fade-in { animation: fadeIn 0.5s ease-in; }
+    
+    .lock-screen {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%);
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: white;
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
   <script type="text/babel">
-    const { useState, useMemo } = React;
+    const { useState, useMemo, useEffect } = React;
+
+    // --- 0. 配置项 ---
+    const UNLOCK_CODE = "BABY2025"; 
+
+    // --- 1. 数据部分 ---
+    const fetalData = {
+      4: { size: "罂粟籽", emoji: "🌰", status: "受精卵着床", length: "0.1cm", weight: "-" },
+      6: { size: "扁豆", emoji: "🫘", status: "心脏开始跳动", length: "0.5cm", weight: "-" },
+      8: { size: "蔓越莓", emoji: "🍒", status: "手指脚趾分化", length: "1.6cm", weight: "1g" },
+      10: { size: "金桔", emoji: "🍊", status: "器官初步形成", length: "3cm", weight: "4g" },
+      12: { size: "青柠", emoji: "🍋", status: "四肢发育完善", length: "5cm", weight: "14g" },
+      14: { size: "柠檬", emoji: "🍋", status: "指纹开始形成", length: "9cm", weight: "45g" }, 
+      16: { size: "牛油果", emoji: "🥑", status: "可能感受到胎动", length: "12cm", weight: "100g" },
+      20: { size: "香蕉", emoji: "🍌", status: "味觉听觉发育", length: "16cm", weight: "300g" },
+      24: { size: "玉米", emoji: "🌽", status: "肺部开始发育", length: "30cm", weight: "600g" },
+      28: { size: "茄子", emoji: "🍆", status: "可以做梦了", length: "38cm", weight: "1kg" },
+      32: { size: "菠萝", emoji: "🍍", status: "指甲长到指尖", length: "42cm", weight: "1.7kg" },
+      36: { size: "长叶莴苣", emoji: "🥬", status: "准备入盆", length: "47cm", weight: "2.6kg" },
+      40: { size: "西瓜", emoji: "🍉", status: "准备出来见面啦", length: "51cm", weight: "3.4kg" }
+    };
 
     const checkupData = [
-      { week: 7, weekRange: "6-8周", period: "early", name: "确诊怀孕 & 排除宫外孕", tags: ["B超"], items: ["B超确认宫内妊娠", "可见胎心胎芽", "排除宫外孕"], tips: "发现怀孕后尽早就诊，确认宫内孕", needAppointment: false, fasting: false },
-      { week: 12, weekRange: "11-13周", period: "early", name: "第一次正式产检（建档）", tags: ["关键", "建档"], items: ["建立母子健康手册", "血常规、尿常规", "肝肾功能、血糖", "传染病筛查", "血型鉴定", "甲状腺功能"], tips: "携带身份证、结婚证、户口本，务必空腹抽血", needAppointment: true, fasting: true },
-      { week: 13, weekRange: "11-13+6周", period: "early", name: "NT检查", tags: ["重要", "限时"], items: ["NT颈项透明层测量", "早期唐氏风险评估"], tips: "必须在13周+6天前完成！建议提前1-2周预约", needAppointment: true, fasting: false },
-      { week: 17, weekRange: "15-20周", period: "mid", name: "唐氏筛查 / 无创DNA", tags: ["筛查"], items: ["中期唐氏筛查", "或无创DNA检测"], tips: "空腹抽血。35岁以上建议直接做无创DNA或羊穿", needAppointment: true, fasting: true },
-      { week: 23, weekRange: "20-24周", period: "mid", name: "大排畸（四维彩超）", tags: ["核心", "重要"], items: ["系统性胎儿超声检查", "胎儿各器官结构筛查", "排查畸形"], tips: "最重要的排畸检查！务必提前2-4周预约", needAppointment: true, fasting: false },
-      { week: 26, weekRange: "24-28周", period: "mid", name: "糖耐量试验（OGTT）", tags: ["空腹", "重要"], items: ["口服75g葡萄糖", "空腹、1h、2h抽血", "筛查妊娠糖尿病"], tips: "检查前3天正常饮食，当天空腹。喝完糖水后不要走动", needAppointment: false, fasting: true },
-      { week: 30, weekRange: "28-32周", period: "late", name: "小排畸 & 常规检查", tags: ["B超"], items: ["晚期超声检查", "评估胎儿发育", "胎位检查"], tips: "进入孕晚期，开始每天数胎动", needAppointment: true, fasting: false },
-      { week: 36, weekRange: "35-37周", period: "late", name: "GBS筛查 & 胎心监护", tags: ["重要"], items: ["B族链球菌筛查", "胎心监护NST", "血常规复查", "凝血功能"], tips: "36周起每周产检。准备好待产包", needAppointment: false, fasting: true },
-      { week: 39, weekRange: "37-40周", period: "late", name: "足月后每周产检", tags: ["高频"], items: ["每周胎心监护", "B超评估羊水", "宫颈成熟度"], tips: "注意产兆：见红、破水、规律宫缩", needAppointment: false, fasting: false }
+      { id: 1, week: 7, weekRange: "6-8周", period: "early", name: "确诊怀孕 & 排除宫外孕", icon: "💚", tags: ["B超"], purpose: "通过B超确认宫内孕，可见胎心胎芽。", items: ["B超确认宫内妊娠", "查看胎心胎芽"], tips: "发现怀孕后尽早就诊，确认是否宫内孕。", tips_dad: "陪她去医院，安抚她的紧张情绪。如果她孕吐严重，准备点清淡的苏打饼干。", prepareWeek: 0, prepareNote: "发现怀孕后尽快预约", needAppointment: false },
+      { id: 2, week: 12, weekRange: "11-13周", period: "early", name: "第一次正式产检（建档）", icon: "👤", tags: ["关键", "建档"], purpose: "俗称'建档'。领取母子健康手册，进行全面身体检查。", items: ["建立母子健康手册", "血常规", "尿常规", "肝肾功能", "传染病筛查"], tips: "这是最重要的一次产检！需要空腹抽血。", tips_dad: "这次要抽很多血，记得随身带点面包和温水，抽完血第一时间递给她吃。", prepareWeek: 10, prepareNote: "孕10周开始准备资料，预约建档", needAppointment: true },
+      { id: 3, week: 12, weekRange: "11-13+6周", period: "early", name: "NT检查", icon: "🏃", tags: ["严格限时"], purpose: "胎儿颈项透明层扫描，排查唐氏风险。", items: ["NT测量", "早唐评估"], tips: "⚠️ 必须在13周+6天前完成！", tips_dad: "这是第一次能清晰看到宝宝人形的B超，尽量请假陪同，一起见证！", prepareWeek: 9, prepareNote: "孕9周就要开始预约！", needAppointment: true },
+      { id: 4, week: 17, weekRange: "15-20周", period: "mid", name: "唐氏筛查 / 无创DNA", icon: "🧬", tags: ["筛查"], purpose: "评估唐氏综合征风险。", items: ["中唐", "或无创DNA"], tips: "需空腹抽血。", tips_dad: "如果结果有风险，她会非常焦虑。告诉她“不管怎样我们一起面对”。", prepareWeek: 14, prepareNote: "孕14周预约", needAppointment: true },
+      { id: 5, week: 23, weekRange: "20-24周", period: "mid", name: "大排畸", icon: "👁️", tags: ["核心"], purpose: "系统性胎儿超声检查。", items: ["全身结构检查"], tips: "检查时间长，可能需要复查。", tips_dad: "如果宝宝不配合，需要爬楼梯或吃点甜食。陪她一起散步。", prepareWeek: 16, prepareNote: "孕16周预约，最难抢的号", needAppointment: true },
+      { id: 6, week: 26, weekRange: "24-28周", period: "mid", name: "糖耐量试验", icon: "🍬", tags: ["空腹"], purpose: "筛查妊娠期糖尿病。", items: ["空腹血糖", "服糖后1h", "服糖后2h"], tips: "喝完糖水不要走动。", tips_dad: "这项检查耗时很久且不能吃东西，非常难受。带好充电宝，陪她打发时间。", prepareWeek: 24, prepareNote: "提前了解注意事项", needAppointment: false },
+      { id: 7, week: 30, weekRange: "28-32周", period: "late", name: "小排畸", icon: "📋", tags: ["B超"], purpose: "晚期超声复查，评估发育。", items: ["晚期B超", "胎位检查"], tips: "开始每天数胎动。", tips_dad: "以后每天监督并陪她数胎动。如果她弯腰不方便，帮她系鞋带。", prepareWeek: 27, prepareNote: "孕27周预约", needAppointment: true },
+      { id: 8, week: 36, weekRange: "35-37周", period: "late", name: "GBS筛查 & 胎心监护", icon: "🔬", tags: ["重要"], purpose: "预防感染，监测胎心。", items: ["GBS筛查", "胎监"], tips: "每周产检一次。准备待产包。", tips_dad: "检查待产包是否齐全。确认去医院的路线，把车油加满。", prepareWeek: 34, prepareNote: "准备待产包", needAppointment: false },
+      { id: 9, week: 39, weekRange: "37-40周", period: "late", name: "每周产检", icon: "🏥", tags: ["高频"], purpose: "监测临产征兆。", items: ["胎监", "宫颈检查"], tips: "注意见红、破水、宫缩。", tips_dad: "手机24小时开机。安抚她的产前焦虑。老婆辛苦了！", prepareWeek: 36, prepareNote: "证件随身带", needAppointment: false }
     ];
 
-    const fetalData = {
-      4: { size: "罂粟籽", length: "0.1cm", weight: "-", desc: "受精卵着床" },
-      6: { size: "扁豆", length: "0.5cm", weight: "-", desc: "心脏开始跳动" },
-      8: { size: "蔓越莓", length: "1.6cm", weight: "1g", desc: "手指脚趾分开" },
-      10: { size: "金桔", length: "3cm", weight: "4g", desc: "正式称为胎儿" },
-      12: { size: "青柠", length: "5cm", weight: "14g", desc: "反射动作出现" },
-      14: { size: "柠檬", length: "9cm", weight: "43g", desc: "可以做表情了" },
-      16: { size: "牛油果", length: "12cm", weight: "100g", desc: "可能感受到胎动" },
-      18: { size: "甜椒", length: "14cm", weight: "190g", desc: "能听到声音了" },
-      20: { size: "香蕉", length: "16cm", weight: "300g", desc: "孕程过半！" },
-      22: { size: "木瓜", length: "28cm", weight: "430g", desc: "可以感知光线" },
-      24: { size: "玉米", length: "30cm", weight: "600g", desc: "肺部开始发育" },
-      26: { size: "葱", length: "36cm", weight: "760g", desc: "可以睁眼了" },
-      28: { size: "茄子", length: "38cm", weight: "1kg", desc: "可以做梦了" },
-      30: { size: "卷心菜", length: "40cm", weight: "1.3kg", desc: "练习呼吸动作" },
-      32: { size: "菠萝", length: "42cm", weight: "1.7kg", desc: "指甲长到指尖" },
-      34: { size: "哈密瓜", length: "45cm", weight: "2.1kg", desc: "免疫系统发育" },
-      36: { size: "长叶莴苣", length: "47cm", weight: "2.6kg", desc: "准备入盆" },
-      38: { size: "韭葱", length: "49cm", weight: "3kg", desc: "继续长肉肉" },
-      40: { size: "西瓜", length: "51cm", weight: "3.4kg", desc: "预产期到啦！" }
-    };
-
-    const nutritionData = {
-      early: {
-        title: "孕早期 (1-13周)",
-        supplements: [
-          { name: "叶酸", dose: "0.4-0.8mg/天", must: true, note: "预防神经管畸形" },
-          { name: "维生素B6", dose: "10-25mg/天", must: false, note: "缓解孕吐" },
-          { name: "DHA", dose: "200mg/天", must: false, note: "促进大脑发育" }
-        ],
-        foods: ["深绿色蔬菜（富含叶酸）", "优质蛋白：鸡蛋、鱼", "少食多餐缓解孕吐"],
-        avoid: ["生食、半生食", "酒精", "咖啡因过量"]
+    const guideDataMom = {
+      early: { 
+        title: "孕早期 (1-13周)", 
+        supplements: [{name:"叶酸",dose:"0.4-0.8mg",note:"预防神经管畸形"}, {name:"维生素B6",dose:"适量",note:"遵医嘱缓解孕吐"}],
+        diet_good: ["清淡饮食", "少食多餐", "苏打饼干(晨吐)"],
+        diet_bad: ["生食刺身", "酒精", "未熟透的蛋/肉"],
+        exercise: "✨ 散步：每天20-30分钟，避免剧烈跳跃。\n✨ 避免：卷腹、负重、高强度有氧。",
+        lifestyle: "💡 嗜睡是正常的，多休息。\n💡 远离宠物粪便(弓形虫)。\n💡 此时肚子不明显，可以开始涂预防妊娠纹油。"
       },
-      mid: {
-        title: "孕中期 (14-27周)",
-        supplements: [
-          { name: "钙", dose: "1000-1200mg/天", must: true, note: "胎儿骨骼发育" },
-          { name: "铁", dose: "27-30mg/天", must: true, note: "预防贫血" },
-          { name: "DHA", dose: "200-300mg/天", must: true, note: "大脑发育黄金期" },
-          { name: "维生素D", dose: "400-600IU/天", must: false, note: "促进钙吸收" }
-        ],
-        foods: ["高钙食物：牛奶、酸奶、豆腐", "补铁食物：红肉、动物肝脏", "DHA：深海鱼、核桃"],
-        avoid: ["高糖食物（预防妊娠糖尿病）", "过咸食物"]
+      mid: { 
+        title: "孕中期 (14-27周)", 
+        supplements: [{name:"钙",dose:"1000mg",note:"预防腿抽筋"}, {name:"铁",dose:"27-30mg",note:"预防缺铁性贫血"}, {name:"DHA",dose:"200mg",note:"胎儿视网膜大脑发育"}], 
+        diet_good: ["优质蛋白(鱼虾)", "膳食纤维(防便秘)", "含铁食物"],
+        diet_bad: ["高糖甜食(控糖)", "过咸食物(防水肿)"],
+        exercise: "✨ 黄金期：孕妇瑜伽、游泳、快走。\n✨ 凯格尔运动：每天做，预防漏尿。",
+        lifestyle: "💡 可能会出现假性宫缩，注意区分。\n💡 睡觉建议开始尝试左侧卧。\n💡 牙龈容易出血，换软毛牙刷。"
       },
-      late: {
-        title: "孕晚期 (28-40周)",
-        supplements: [
-          { name: "钙", dose: "1200mg/天", must: true, note: "骨骼快速发育" },
-          { name: "铁", dose: "30-60mg/天", must: true, note: "为分娩储备" },
-          { name: "DHA", dose: "200-300mg/天", must: false, note: "持续支持发育" }
-        ],
-        foods: ["少食多餐", "优质蛋白储备体力", "含锌食物促进分娩"],
-        avoid: ["高盐（预防水肿）", "37周后避免长途旅行"]
+      late: { 
+        title: "孕晚期 (28-40周)", 
+        supplements: [{name:"钙",dose:"1200mg",note:"骨骼快速钙化"}, {name:"锌",dose:"适量",note:"有助于分娩"}], 
+        diet_good: ["冬瓜/红豆(去水肿)", "助产食物(足月后)"],
+        diet_bad: ["高热量(控制胎儿体重)", "难消化食物"],
+        exercise: "✨ 骨盆运动：坐瑜伽球。\n✨ 散步：帮助胎儿入盆。\n✨ 避免：仰卧运动，防压迫血管。",
+        lifestyle: "💡 数胎动！数胎动！\n💡 准备待产包，了解去医院路线。\n💡 出现破水平躺，叫救护车。"
       }
     };
 
-    function addDays(date, days) {
-      const result = new Date(date);
-      result.setDate(result.getDate() + days);
-      return result;
-    }
-
-    function formatDate(date) {
-      return (date.getMonth() + 1) + "月" + date.getDate() + "日";
-    }
-
-    function getWeekInfo(lmpDate) {
-      const today = new Date();
-      const diffDays = Math.floor((today - lmpDate) / (1000 * 60 * 60 * 24));
-      return { weeks: Math.floor(diffDays / 7), days: diffDays % 7 };
-    }
-
-    function getFetalInfo(week) {
-      if (week < 4) return fetalData[4];
-      if (week > 40) return fetalData[40];
-      const weeks = Object.keys(fetalData).map(Number).sort((a, b) => a - b);
-      let closest = 4;
-      for (const w of weeks) {
-        if (week >= w) closest = w;
+    const guideDataDad = {
+      early: { 
+        title: "孕早期 (1-13周)", 
+        mission: "🛡️ 核心任务：包容与后勤",
+        action_list: ["承包厨房：她闻到油烟可能会吐。", "承担家务：提重物、弯腰的活全包。", "情绪价值：她可能突然发脾气，那是激素在作怪，抱抱她。", "准备零食：床头放点苏打饼干。"],
+        avoid_list: ["在她面前抽烟（绝对禁止）", "抱怨她变懒了（她在拼命长孩子）", "喷浓烈的香水或发胶"],
+        bonus: "💡 每天下班带一个小惊喜（水果或小花），缓解她的紧张焦虑。"
+      },
+      mid: { 
+        title: "孕中期 (14-27周)", 
+        mission: "🤝 核心任务：参与与互动",
+        action_list: ["胎教互动：每天对着肚子说说话，讲故事。", "陪同产检：尽量不错过每一次产检。", "安排旅行：趁身体舒服，带她去周边散散心（Babymoon）。", "按摩服务：帮她按摩小腿，缓解水肿。"],
+        avoid_list: ["让她提重物", "长途跋涉太累的行程", "冷落她（多夸她怀孕也很美）"],
+        bonus: "💡 学习给宝宝换尿布、洗澡的视频，让她知道你也在努力。"
+      },
+      late: { 
+        title: "孕晚期 (28-40周)", 
+        mission: "🚑 核心任务：待命与守护",
+        action_list: ["后勤部长：确认待产包齐全，证件放好。", "司机待命：摸清去医院的最快路线，车油加满。", "数胎动：每天提醒并陪她一起数。", "随时联系：手机24小时开机，铃声开最大。"],
+        avoid_list: ["出远门/出差", "喝酒（随时可能要开车去医院）", "手机静音"],
+        bonus: "💡 提前了解母乳喂养知识，做她最坚定的支持者。"
       }
-      return fetalData[closest];
+    };
+
+    // --- 核心增强：每日专属金句库 (海量文案) ---
+    // 通过 days % length 算法循环，保证每天不一样
+    const quotesLibrary = {
+      mom: {
+        early: [ // 1-13周
+          "听到心跳的那一刻，世界都亮了",
+          "宝贝正在努力安家，妈妈也要加油",
+          "虽然还感觉不到你，但我知道你在",
+          "所有的不适，都是为了最美的遇见",
+          "小小的你，正在身体里进行一场大冒险",
+          "今天也是努力给宝贝输送营养的一天",
+          "为了你，戒掉奶茶也变得没那么难",
+          "每一次孕吐，都是你在刷存在感吗？",
+          "亲爱的宝贝，我们在春天等你",
+          "虽然看不显怀，但我们的连接已经开始",
+          "想把这世间所有的温柔都给你",
+          "今天阳光很好，你感觉到了吗？",
+          "爸爸今天又对着肚子傻笑来着",
+          "慢慢长，妈妈不急，只要你健康",
+          "生命真奇妙，肚子里竟然有个小心跳"
+        ],
+        mid: [ // 14-27周 (胎动期)
+          "第一次感受到你的那一刻，心都化了",
+          "嘿，小家伙，今天在肚子里练拳击吗？",
+          "你是上天赐给我最好的礼物",
+          "和你合体的日子，每一天都值得纪念",
+          "保持好心情，宝宝也会感受到哦",
+          "今天吃了好吃的，你也很开心吧？",
+          "摸摸圆滚滚的肚子，是满满的幸福",
+          "爸爸说，迫不及待想带你去游乐园",
+          "即使身体变笨重，心却是轻盈的",
+          "听一首温柔的歌，和你说悄悄话",
+          "今天是你长大的第几天啦？",
+          "谢谢你选择我做你的妈妈",
+          "你的每一次翻身，都是我们的小秘密",
+          "趁现在，多享受合体的亲密时光",
+          "想象着你的样子，是像爸爸还是像我？"
+        ],
+        late: [ // 28-40周 (待产期)
+          "所有的等待，都是为了最美的遇见",
+          "相信自己，你的身体天生知道如何分娩",
+          "还有一点点时间，我们就要见面啦",
+          "你比想象中更勇敢，加油",
+          "待产包准备好啦，万事俱备",
+          "虽然走路像企鹅，但心是飞翔的",
+          "每一天都在倒计时，期待又紧张",
+          "好好睡觉，攒足力气，我们起跑线见",
+          "宝贝，选个好日子，我们出来玩",
+          "不要怕，爸爸妈妈已经做好了准备",
+          "你是我们最期待的惊喜",
+          "最后冲刺阶段，我们一起努力",
+          "感受你的每一次律动，都是安定的力量",
+          "宫缩是见面的信号，我不怕",
+          "你好呀，未来的小宝贝"
+        ]
+      },
+      dad: {
+        early: [
+          "老婆辛苦了，今天也要多爱她一点",
+          "我会是你最坚强的后盾",
+          "虽然看不见，但我知道你在悄悄长大",
+          "准爸爸的肩膀，是家最坚实的依靠",
+          "今天也要努力工作，赚奶粉钱！",
+          "看着她难受，恨不得替她承受",
+          "承包家务，是男人的浪漫",
+          "宝贝，要乖乖的，别折腾妈妈",
+          "每天回家第一件事，就是看看你们",
+          "老婆想吃什么？哪怕是天上的星星",
+          "虽然不能感同身受，但我会时刻陪伴",
+          "正在学习怎么做一个超级奶爸",
+          "我的女孩，变成了伟大的妈妈",
+          "为了你们，我要变成超人",
+          "感谢老婆，赐予我父亲的身份"
+        ],
+        mid: [
+          "少玩手机多陪聊，宝宝能听见爸爸的声音",
+          "给老婆按摩小腿，是准爸爸的必修课",
+          "期待带你去看不一样的世界",
+          "努力工作，更要努力顾家",
+          "今天给宝宝讲个什么故事呢？",
+          "刚刚摸到了！是你踢我了吗？",
+          "周末带老婆去散散心，拍美美的照片",
+          "老婆的笑容，是家里最好的风水",
+          "虽然不能代替怀孕，但可以分担家务",
+          "宝宝，爸爸今天也很想你",
+          "陪她产检，是我最重要的日程",
+          "看着肚子一天天变大，责任也更重了",
+          "每天对着肚子说早安晚安",
+          "准备婴儿房，是我最开心的时刻",
+          "老婆长胖了？不，是可爱膨胀了"
+        ],
+        late: [
+          "你不用很完美，只要很爱她们就够了",
+          "无论发生什么，我都在你身边",
+          "准备好啦，我们要当爸爸妈妈了",
+          "老婆，你辛苦了",
+          "手机24小时待机，随时听从召唤",
+          "虽然我很紧张，但我不能表现出来",
+          "最后几天，珍惜二人世界",
+          "我已经学会换尿布了，放马过来吧",
+          "去医院的路线，已经在脑海演练千遍",
+          "宝贝，别着急，足月了再出来",
+          "老婆，别怕，有我在",
+          "期待第一眼见到你，我的小天使",
+          "你的名字，我已经想了好几个",
+          "守护你们，是我一生的承诺",
+          "倒计时开始，迎接新生命"
+        ]
+      }
+    };
+
+    function addDays(date, days) { const r = new Date(date); r.setDate(r.getDate() + days); return r; }
+    function formatDate(date) { return `${date.getMonth()+1}月${date.getDate()}日`; }
+    function getWeekInfo(lmp) { const diff = Math.floor((new Date() - lmp)/(86400000)); return { weeks: Math.floor(diff/7), days: diff%7, totalDays: diff }; }
+    
+    function getFetalData(week) {
+        const weeks = Object.keys(fetalData).map(Number).sort((a,b)=>a-b);
+        let closest = 4;
+        for(let w of weeks) { if(week >= w) closest = w; }
+        return fetalData[closest];
+    }
+
+    function getNextCheckup(currentWeek, completed) {
+      const pending = checkupData.find(item => !completed[item.id] && (parseInt(item.weekRange.split('-')[0]) || item.week) >= currentWeek);
+      if (!pending) return null;
+      const startWeek = parseInt(pending.weekRange.split('-')[0]) || pending.week;
+      const weeksUntil = Math.max(0, startWeek - currentWeek);
+      return { days: weeksUntil * 7, name: pending.name };
+    }
+
+    function getCheckupStatus(item, currentWeek, completed) {
+      if (completed[item.id]) return { status: 'completed', label: '已完成', color: '#4CAF50', bgColor: '#E8F5E9' };
+      const start = parseInt(item.weekRange.split('-')[0]) || item.week - 1;
+      const end = parseInt(item.weekRange.split('-')[1]) || item.week + 2;
+      
+      if (currentWeek > end + 1) return { status: 'overdue', label: '已超时', color: '#F44336', bgColor: '#FFEBEE' };
+      if (currentWeek >= start - 1 && currentWeek <= end + 1) return { status: 'current', label: '进行中', color: '#FF6B95', bgColor: '#FCE4EC' };
+      return { status: 'pending', label: '待进行', color: '#9E9E9E', bgColor: '#F5F5F5' };
     }
 
     function App() {
-      const [lmpDate, setLmpDate] = useState('');
-      const [completed, setCompleted] = useState({});
-      const [expanded, setExpanded] = useState(null);
+      const [isUnlocked, setIsUnlocked] = useState(() => localStorage.getItem('mom_app_unlocked') === 'true');
+      const [inputCode, setInputCode] = useState('');
+      const [errorMsg, setErrorMsg] = useState('');
+      
+      const [lmpDate, setLmpDate] = useState(() => localStorage.getItem('mom_lmp_date') || '');
+      const [completed, setCompleted] = useState(() => JSON.parse(localStorage.getItem('mom_completed_checks')) || {});
+      const [role, setRole] = useState(() => localStorage.getItem('mom_user_role') || 'mom'); 
+      const [showShare, setShowShare] = useState(false);
       const [tab, setTab] = useState('checkup');
+      const [expanded, setExpanded] = useState(null);
+
+      useEffect(() => { if(lmpDate) localStorage.setItem('mom_lmp_date', lmpDate); }, [lmpDate]);
+      useEffect(() => { localStorage.setItem('mom_completed_checks', JSON.stringify(completed)); }, [completed]);
+      useEffect(() => { localStorage.setItem('mom_user_role', role); }, [role]);
+
+      const handleUnlock = () => {
+        if (inputCode === UNLOCK_CODE) {
+          setIsUnlocked(true);
+          localStorage.setItem('mom_app_unlocked', 'true');
+        } else {
+          setErrorMsg('无效的通行证，请联系夏妮获取');
+        }
+      };
 
       const data = useMemo(() => {
         if (!lmpDate) return null;
         const lmp = new Date(lmpDate);
-        const edd = addDays(lmp, 280);
         const weekInfo = getWeekInfo(lmp);
-        const daysLeft = Math.max(0, Math.ceil((edd - new Date()) / (1000 * 60 * 60 * 24)));
-        const fetal = getFetalInfo(weekInfo.weeks);
+        const edd = addDays(lmp, 280);
+        const fetal = getFetalData(weekInfo.weeks);
         const period = weekInfo.weeks >= 28 ? 'late' : weekInfo.weeks >= 14 ? 'mid' : 'early';
-        return { lmp, edd, weekInfo, daysLeft, fetal, period, nutrition: nutritionData[period] };
-      }, [lmpDate]);
+        const nextCheck = getNextCheckup(weekInfo.weeks, completed);
+        const guide = role === 'mom' ? guideDataMom[period] : guideDataDad[period];
+        
+        // --- 核心逻辑更新：确定性每日文案 ---
+        // 使用 "总怀孕天数" 作为索引，确保同一天对于同一个用户，文案是固定的
+        // 取模运算 (%) 保证了天数超过文案库数量时会循环，不会报错
+        const quoteList = quotesLibrary[role][period];
+        const dayIndex = weekInfo.totalDays; // 使用怀孕总天数
+        const quote = quoteList[Math.abs(dayIndex) % quoteList.length];
+        
+        return { lmp, edd, weekInfo, fetal, period, guide, nextCheck, quote };
+      }, [lmpDate, role, completed]);
 
-      const toggleComplete = (week) => {
-        setCompleted(prev => {
-          const newState = {...prev};
-          newState[week] = !newState[week];
-          return newState;
-        });
-      };
+      if (!isUnlocked) {
+        return (
+          <div className="lock-screen">
+             <div style={{ fontSize: '64px', marginBottom: '20px' }}>🤰</div>
+             <h1 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '10px' }}>准妈妈产检助手</h1>
+             <p style={{ fontSize: '14px', opacity: 0.9, marginBottom: '30px' }}>请输入专属通行证以解锁全部功能</p>
+             <input 
+               type="text" 
+               placeholder="请输入通行证"
+               value={inputCode}
+               onChange={(e) => {setInputCode(e.target.value); setErrorMsg('');}}
+               style={{ padding: '12px 20px', borderRadius: '30px', border: 'none', width: '240px', textAlign: 'center', fontSize: '16px', marginBottom: '16px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}
+             />
+             <button 
+               onClick={handleUnlock}
+               style={{ background: 'white', color: '#FF9A9E', padding: '12px 40px', borderRadius: '30px', border: 'none', fontSize: '16px', fontWeight: 600, boxShadow: '0 4px 10px rgba(0,0,0,0.1)', cursor: 'pointer' }}
+             >
+               解锁
+             </button>
+             {errorMsg && <div style={{ marginTop: '20px', fontSize: '13px', background: 'rgba(0,0,0,0.2)', padding: '6px 12px', borderRadius: '4px' }}>⚠️ {errorMsg}</div>}
+             <div style={{ position: 'absolute', bottom: '30px', fontSize: '12px', opacity: 0.7 }}>Powered by PM夏妮</div>
+          </div>
+        );
+      }
 
       return (
-        <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #FFF5F7 0%, #FFF 100%)', fontFamily: 'system-ui, sans-serif' }}>
-          <div style={{ background: 'linear-gradient(135deg, #FF6B95 0%, #FF8A80 100%)', padding: '24px 20px', color: 'white' }}>
-            <div style={{ maxWidth: '480px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '32px' }}>🤰</span>
-                <div>
-                  <h1 style={{ fontSize: '20px', margin: 0, fontWeight: 600 }}>准妈妈产检时间表</h1>
-                  <p style={{ fontSize: '12px', margin: '4px 0 0', opacity: 0.9 }}>基于末次月经计算 · 符合中国大陆产检标准</p>
-                </div>
-              </div>
+        <div className="fade-in" style={{ maxWidth: '500px', margin: '0 auto', position: 'relative' }}>
+          {/* Header 视觉优化版 */}
+          <div style={{ background: role === 'mom' ? 'linear-gradient(135deg, #FF6B95, #FF8A80)' : 'linear-gradient(135deg, #42A5F5, #64B5F6)', padding: '24px 20px 40px', color: 'white', transition: 'all 0.3s' }}>
+            {/* Top Bar Buttons - 玻璃质感 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <button onClick={() => setRole(r => r === 'mom' ? 'dad' : 'mom')} style={{ background: 'rgba(255,255,255,0.25)', border: '1px solid rgba(255,255,255,0.4)', color: 'white', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+                  {role === 'mom' ? '👩 我是妈妈' : '👨 我是爸爸'}
+              </button>
+              <button onClick={() => setShowShare(true)} style={{ background: 'rgba(255,255,255,0.25)', border: '1px solid rgba(255,255,255,0.4)', color: 'white', padding: '6px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>
+                <span>📷</span> 生成打卡图
+              </button>
             </div>
+            
+            {data ? (
+                <div>
+                   {/* 核心孕周 - 大字报风格 */}
+                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                     <span style={{ fontSize: '56px', fontWeight: 700, lineHeight: 1 }}>{data.weekInfo.weeks}</span>
+                     <span style={{ fontSize: '18px' }}>周</span>
+                     <span style={{ fontSize: '28px', fontWeight: 600 }}>+{data.weekInfo.days}</span>
+                     <span style={{ fontSize: '18px' }}>天</span>
+                   </div>
+
+                   {/* 宝宝状态 - 标签分离设计 */}
+                   <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '15px', opacity: 0.9 }}>
+                        宝宝像个 <strong>{data.fetal.emoji} {data.fetal.size}</strong>
+                      </span>
+                      {/* 发育状态胶囊 */}
+                      <span style={{ background: 'rgba(255,255,255,0.25)', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 500, border: '1px solid rgba(255,255,255,0.3)' }}>
+                         {data.fetal.status}
+                      </span>
+                   </div>
+
+                   {/* 倒计时 - 独立玻璃卡片设计 */}
+                   {data.nextCheck && (
+                       <div style={{ marginTop: '20px', background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', padding: '12px 16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backdropFilter: 'blur(2px)' }}>
+                          <div>
+                            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '2px' }}>距离 下次产检</div>
+                            <div style={{ fontSize: '15px', fontWeight: 700 }}>{data.nextCheck.name}</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '12px', opacity: 0.9 }}>约剩</div>
+                            <div style={{ fontSize: '24px', fontWeight: 700, lineHeight: 1 }}>{Math.max(1, data.nextCheck.days)}<span style={{ fontSize: '12px', fontWeight: 400 }}> 天</span></div>
+                          </div>
+                       </div>
+                   )}
+                </div>
+            ) : (
+                <div style={{ padding: '20px 0' }}>
+                   <div style={{ fontSize: '20px', fontWeight: 600 }}>欢迎使用准妈妈助手</div>
+                   <div style={{ fontSize: '13px', opacity: 0.8, marginTop: '4px' }}>请输入日期开始规划</div>
+                </div>
+            )}
           </div>
 
-          <div style={{ maxWidth: '480px', margin: '0 auto', padding: '0 16px 32px' }}>
-            <div style={{ background: 'white', borderRadius: '16px', padding: '20px', marginTop: '-12px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', position: 'relative', zIndex: 10 }}>
-              <label style={{ fontSize: '13px', color: '#666', display: 'block', marginBottom: '8px' }}>
-                📅 请输入末次月经第一天 (LMP)
-              </label>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <input
-                  type="date"
-                  value={lmpDate}
-                  onChange={(e) => setLmpDate(e.target.value)}
-                  style={{ flex: 1, padding: '12px', fontSize: '15px', border: '2px solid #FFD1DC', borderRadius: '10px', outline: 'none' }}
-                />
-                {data && (
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '11px', color: '#999' }}>预产期</div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#FF6B95' }}>
-                      {data.edd.getFullYear()}/{data.edd.getMonth() + 1}/{data.edd.getDate()}
-                    </div>
-                  </div>
-                )}
-              </div>
+          <div style={{ padding: '0 16px' }}>
+            <div style={{ background: 'white', borderRadius: '16px', padding: '16px', marginTop: '-24px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'relative', zIndex: 5 }}>
+              <label style={{ fontSize: '13px', color: '#666', display: 'block', marginBottom: '8px' }}>📅 末次月经第一天 (LMP)</label>
+              <input type="date" value={lmpDate} onChange={(e) => setLmpDate(e.target.value)} style={{ width: '100%', padding: '12px', fontSize: '16px', border: '1px solid #FFD1DC', borderRadius: '8px', outline: 'none', background: 'white' }} />
             </div>
 
             {data && (
               <React.Fragment>
-                <div style={{ background: 'linear-gradient(135deg, #FF6B95, #FF8A80)', borderRadius: '16px', padding: '20px', marginTop: '16px', color: 'white' }}>
-                  <div style={{ fontSize: '12px', opacity: 0.9 }}>当前进度</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', margin: '4px 0' }}>
-                    <span style={{ fontSize: '14px' }}>孕</span>
-                    <span style={{ fontSize: '40px', fontWeight: 700 }}>{data.weekInfo.weeks}</span>
-                    <span style={{ fontSize: '14px' }}>周 +</span>
-                    <span style={{ fontSize: '24px', fontWeight: 600 }}>{data.weekInfo.days}</span>
-                    <span style={{ fontSize: '14px' }}>天</span>
-                  </div>
-                  <div style={{ fontSize: '13px', opacity: 0.9 }}>距离预产期还有 <strong>{data.daysLeft}</strong> 天</div>
-                  
-                  <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '12px', padding: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span style={{ fontSize: '28px' }}>👶</span>
-                    <div>
-                      <div style={{ fontSize: '12px', opacity: 0.9 }}>宝宝现在像一个</div>
-                      <div style={{ fontSize: '16px', fontWeight: 600 }}>{data.fetal.size}</div>
-                      <div style={{ fontSize: '11px', opacity: 0.85 }}>约 {data.fetal.length}，{data.fetal.weight}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                  {[
-                    { key: 'checkup', label: '📋 产检' },
-                    { key: 'fetal', label: '👶 发育' },
-                    { key: 'nutrition', label: '💊 营养' }
-                  ].map(t => (
-                    <button
-                      key={t.key}
-                      onClick={() => setTab(t.key)}
-                      style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: tab === t.key ? '#FF6B95' : 'white', color: tab === t.key ? 'white' : '#666', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
-                    >
-                      {t.label}
-                    </button>
+                <div style={{ display: 'flex', background: 'white', padding: '4px', borderRadius: '12px', margin: '20px 0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
+                  {[{k:'checkup',l:'📋 产检'},{k:'fetal',l:'👶 发育'},{k:'guide',l:'💡 指南'}].map(t => (
+                    <button key={t.k} onClick={() => setTab(t.k)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: tab === t.k ? (role === 'mom' ? '#FF6B95' : '#42A5F5') : 'transparent', color: tab === t.k ? 'white' : '#666', fontWeight: 500, transition: 'all 0.3s' }}>{t.l}</button>
                   ))}
                 </div>
 
                 {tab === 'checkup' && (
-                  <div style={{ marginTop: '16px' }}>
-                    {checkupData.map((item, i) => {
-                      const startDate = addDays(data.lmp, item.week * 7 - 7);
-                      const endDate = addDays(data.lmp, item.week * 7 + 7);
-                      const isCompleted = completed[item.week];
-                      const isCurrent = data.weekInfo.weeks >= item.week - 2 && data.weekInfo.weeks <= item.week + 2 && !isCompleted;
-                      const isExpanded = expanded === i;
-
-                      return (
-                        <div key={i} style={{ marginBottom: '12px' }}>
-                          <div onClick={() => setExpanded(isExpanded ? null : i)} style={{ background: 'white', borderRadius: '12px', padding: '16px', border: isCurrent ? '2px solid #FF6B95' : '1px solid #F0F0F0', cursor: 'pointer' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                                  {item.tags.map((tag, j) => (
-                                    <span key={j} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: tag.includes('核心') || tag.includes('关键') || tag.includes('重要') || tag.includes('限时') ? '#FCE4EC' : '#F5F5F5', color: tag.includes('核心') || tag.includes('关键') || tag.includes('重要') || tag.includes('限时') ? '#C2185B' : '#666' }}>{tag}</span>
-                                  ))}
-                                  <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: isCompleted ? '#E8F5E9' : isCurrent ? '#FFF3E0' : '#F5F5F5', color: isCompleted ? '#2E7D32' : isCurrent ? '#E65100' : '#999' }}>
-                                    {isCompleted ? '已完成' : isCurrent ? '进行中' : '待进行'}
-                                  </span>
-                                </div>
-                                <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#333', margin: '0 0 4px', textDecoration: isCompleted ? 'line-through' : 'none', opacity: isCompleted ? 0.6 : 1 }}>{item.name}</h3>
-                                <div style={{ fontSize: '12px', color: '#FF6B95' }}>🗓️ 孕 {item.weekRange} · {formatDate(startDate)} - {formatDate(endDate)}</div>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <button onClick={(e) => { e.stopPropagation(); toggleComplete(item.week); }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: isCompleted ? 'none' : '2px solid #DDD', background: isCompleted ? '#4CAF50' : 'white', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>
-                                  {isCompleted ? '✓' : ''}
-                                </button>
-                                <span style={{ color: '#CCC', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s', display: 'inline-block' }}>▾</span>
-                              </div>
-                            </div>
-                            {isExpanded && (
-                              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #EEE' }}>
-                                <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>📝 检查项目：</div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
-                                  {item.items.map((it, k) => (
-                                    <span key={k} style={{ fontSize: '12px', padding: '4px 10px', background: '#F8F9FA', borderRadius: '6px', color: '#555' }}>{it}</span>
-                                  ))}
-                                </div>
-                                <div style={{ background: item.needAppointment ? '#FFF3E0' : '#F0F9FF', padding: '12px', borderRadius: '8px', fontSize: '13px', color: item.needAppointment ? '#E65100' : '#0277BD' }}>
-                                  {item.needAppointment && <div style={{ fontWeight: 600, marginBottom: '4px' }}>📢 需要提前预约</div>}
-                                  {item.fasting && <span style={{ background: '#FFECB3', color: '#F57C00', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', marginRight: '8px' }}>🍽️ 需空腹</span>}
-                                  <span>💡 {item.tips}</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
+                  <div>
+                    {checkupData.map((item) => {
+                       const status = getCheckupStatus(item, data.weekInfo.weeks, completed);
+                       const isExpanded = expanded === item.id;
+                       return (
+                         <div key={item.id} onClick={() => setExpanded(isExpanded ? null : item.id)} style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', border: status.status === 'current' ? (role === 'mom' ? '1px solid #FF6B95' : '1px solid #42A5F5') : '1px solid transparent', position: 'relative', overflow: 'hidden', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                           {status.status === 'completed' && (
+                               <div style={{ position: 'absolute', right: '0', top: '0', width: '0', height: '0', borderStyle: 'solid', borderWidth: '0 50px 50px 0', borderColor: `transparent #4CAF50 transparent transparent` }}>
+                                   <div style={{ position: 'absolute', top: '6px', right: '-48px', color: 'white', fontSize: '14px', fontWeight: 'bold' }}>✓</div>
+                               </div>
+                           )}
+                           <div style={{ display: 'flex', gap: '12px' }}>
+                             <div style={{ fontSize: '24px', paddingTop: '2px' }}>{item.icon}</div>
+                             <div style={{ flex: 1 }}>
+                               <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                                 <span style={{ fontSize: '10px', padding: '2px 6px', background: status.bgColor, color: status.color, borderRadius: '4px', fontWeight: 500 }}>{status.label}</span>
+                                 <span style={{ fontSize: '10px', padding: '2px 6px', background: '#F5F5F5', color: '#666', borderRadius: '4px' }}>孕{item.weekRange}</span>
+                               </div>
+                               <div style={{ fontWeight: 600, color: status.status === 'completed' ? '#999' : '#333', fontSize: '15px' }}>{item.name}</div>
+                             </div>
+                             <div style={{ display: 'flex', alignItems: 'center', paddingRight: status.status === 'completed' ? '20px' : '0' }}>
+                               <button onClick={(e) => { e.stopPropagation(); setCompleted({...completed, [item.id]: !completed[item.id]}); }} style={{ width: '28px', height: '28px', borderRadius: '50%', border: status.status === 'completed' ? '2px solid #4CAF50' : '2px solid #DDD', background: status.status === 'completed' ? '#4CAF50' : 'white', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>✓</button>
+                             </div>
+                           </div>
+                           {isExpanded && (
+                             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #EEE', fontSize: '13px' }}>
+                               <div style={{ color: '#666', marginBottom: '8px', lineHeight: 1.5 }}>{item.purpose}</div>
+                               {role === 'dad' && item.tips_dad ? (
+                                  <div style={{ background: '#E3F2FD', padding: '10px', borderRadius: '8px', color: '#1565C0', lineHeight: 1.5 }}><strong>👨 爸爸任务：</strong>{item.tips_dad}</div>
+                               ) : (
+                                  <div style={{ background: '#F0F9FF', padding: '10px', borderRadius: '8px', color: '#0277BD', lineHeight: 1.5 }}>💡 <strong>Tips：</strong>{item.tips}</div>
+                               )}
+                               <div style={{ marginTop: '10px', color: '#555' }}><strong>检查项目：</strong>{item.items.join('、')}</div>
+                             </div>
+                           )}
+                         </div>
+                       );
                     })}
                   </div>
                 )}
-
+                
                 {tab === 'fetal' && (
-                  <div style={{ marginTop: '16px' }}>
-                    <div style={{ background: 'white', borderRadius: '16px', padding: '24px', textAlign: 'center', marginBottom: '16px' }}>
-                      <div style={{ fontSize: '64px', marginBottom: '12px' }}>👶</div>
-                      <div style={{ fontSize: '14px', color: '#999' }}>第 {data.weekInfo.weeks} 周的宝宝</div>
-                      <div style={{ fontSize: '24px', fontWeight: 600, color: '#FF6B95', margin: '8px 0' }}>像一个{data.fetal.size}</div>
-                      <div style={{ display: 'inline-flex', gap: '24px', background: '#FFF5F7', padding: '12px 24px', borderRadius: '20px', margin: '12px 0' }}>
-                        <div>
-                          <div style={{ fontSize: '11px', color: '#999' }}>身长约</div>
-                          <div style={{ fontSize: '18px', fontWeight: 600 }}>{data.fetal.length}</div>
-                        </div>
-                        <div style={{ width: '1px', background: '#FFD1DC' }}></div>
-                        <div>
-                          <div style={{ fontSize: '11px', color: '#999' }}>体重约</div>
-                          <div style={{ fontSize: '18px', fontWeight: 600 }}>{data.fetal.weight}</div>
-                        </div>
+                   <div style={{ background: 'white', borderRadius: '16px', padding: '20px' }}>
+                      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                          <div style={{ fontSize: '80px' }}>{data.fetal.emoji}</div>
+                          <div style={{ fontSize: '18px', fontWeight: 600, marginTop: '8px' }}>{data.fetal.size}</div>
+                          <div style={{ color: '#666', fontSize: '14px', marginTop: '4px' }}>{data.fetal.status}</div>
                       </div>
-                      <div style={{ fontSize: '14px', color: '#666' }}>{data.fetal.desc}</div>
-                    </div>
-                    <div style={{ background: 'white', borderRadius: '16px', padding: '20px' }}>
-                      <h3 style={{ fontSize: '16px', margin: '0 0 16px', color: '#333' }}>📈 发育历程</h3>
-                      {[8, 12, 16, 20, 24, 28, 32, 36, 40].map(week => {
+                      <h3 style={{ fontSize: '16px', margin: '0 0 16px', color: '#333' }}>📈 发育对照表</h3>
+                      {Object.keys(fetalData).map(Number).sort((a,b)=>a-b).map(week => {
                         const info = fetalData[week];
-                        const isPast = data.weekInfo.weeks >= week;
-                        const isCurrent = data.weekInfo.weeks >= week - 2 && data.weekInfo.weeks < week + 4;
+                        const isPast = data.weekInfo.weeks > week;
+                        const isCurrent = data.weekInfo.weeks >= week && data.weekInfo.weeks < week + 2;
+                        const activeColor = role === 'mom' ? '#FF6B95' : '#42A5F5';
+                        
                         return (
-                          <div key={week} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', marginBottom: '8px', background: isCurrent ? '#FFF5F7' : isPast ? '#FAFAFA' : 'transparent', borderRadius: '10px', border: isCurrent ? '2px solid #FF6B95' : '1px solid #F0F0F0', opacity: isPast ? 1 : 0.5 }}>
-                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: isCurrent ? '#FF6B95' : isPast ? '#E8F5E9' : '#F5F5F5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: isCurrent ? 'white' : isPast ? '#4CAF50' : '#999', flexShrink: 0 }}>{week}周</div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '14px', fontWeight: 500 }}>{info.size}</div>
-                              <div style={{ fontSize: '12px', color: '#666' }}>{info.length}, {info.weight} · {info.desc}</div>
+                          <div key={week} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: isCurrent ? '16px 12px' : '12px 6px', margin: isCurrent ? '12px -6px' : '0', background: isCurrent ? '#FFF' : 'transparent', borderBottom: isCurrent ? 'none' : '1px solid #F5F5F5', borderRadius: isCurrent ? '12px' : '0', boxShadow: isCurrent ? '0 4px 12px rgba(0,0,0,0.08)' : 'none', border: isCurrent ? `2px solid ${activeColor}` : 'none', opacity: isPast ? 0.5 : 1, transition: 'all 0.3s' }}>
+                            <div style={{ fontSize: isCurrent ? '32px' : '24px', filter: isPast ? 'grayscale(100%)' : 'none' }}>{info.emoji}</div>
+                            <div style={{ flex: 1 }}>
+                               <div style={{ fontSize: isCurrent ? '16px' : '14px', fontWeight: 500, color: isCurrent ? activeColor : (isPast ? '#999' : '#333') }}>{week}周 · {info.size}</div>
+                               <div style={{ fontSize: '12px', color: '#888' }}>{info.status}</div>
                             </div>
-                            {isPast && <span style={{ color: '#4CAF50', flexShrink: 0 }}>✓</span>}
+                            <div style={{ fontSize: '12px', color: '#999' }}>{info.length}</div>
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
+                   </div>
                 )}
 
-                {tab === 'nutrition' && (
-                  <div style={{ marginTop: '16px' }}>
-                    <div style={{ background: 'linear-gradient(135deg, #FF6B95, #FF8A80)', borderRadius: '16px', padding: '16px 20px', color: 'white', marginBottom: '16px' }}>
-                      <div style={{ fontSize: '13px', opacity: 0.9 }}>您当前处于</div>
-                      <div style={{ fontSize: '18px', fontWeight: 600 }}>{data.nutrition.title}</div>
+                {tab === 'guide' && (
+                  <div>
+                    <div style={{ background: role === 'mom' ? 'linear-gradient(135deg, #FF6B95, #FF8A80)' : 'linear-gradient(135deg, #42A5F5, #64B5F6)', borderRadius: '16px', padding: '16px 20px', color: 'white', marginBottom: '16px' }}>
+                      <div style={{ fontSize: '13px', opacity: 0.9 }}>当前阶段</div>
+                      <div style={{ fontSize: '18px', fontWeight: 600 }}>{data.guide.title}</div>
                     </div>
-                    <div style={{ background: 'white', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
-                      <h3 style={{ fontSize: '16px', margin: '0 0 16px', color: '#333' }}>💊 营养补充剂</h3>
-                      {data.nutrition.supplements.map((s, i) => (
-                        <div key={i} style={{ padding: '14px', marginBottom: '10px', background: '#FAFAFA', borderRadius: '12px', borderLeft: s.must ? '4px solid #FF6B95' : '4px solid #FFB74D' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                            <span style={{ fontSize: '15px', fontWeight: 600 }}>{s.name}</span>
-                            <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', background: s.must ? '#FCE4EC' : '#FFF8E1', color: s.must ? '#C2185B' : '#F57C00' }}>{s.must ? '必需' : '推荐'}</span>
-                          </div>
-                          <div style={{ fontSize: '13px', color: '#FF6B95', fontWeight: 500 }}>{s.dose}</div>
-                          <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>{s.note}</div>
+                    
+                    {role === 'mom' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px', gridColumn: '1 / -1' }}>
+                           <h3 style={{ fontSize: '15px', margin: '0 0 12px', color: '#333' }}>💊 关键补剂</h3>
+                           {data.guide.supplements.map((s, i) => (
+                              <div key={i} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px dashed #EEE' }}>
+                                 <div style={{ fontWeight: 600, fontSize: '14px', color: '#333' }}>{s.name} <span style={{fontSize:'12px', color:'#999', fontWeight:400}}>{s.dose}</span></div>
+                                 <div style={{ fontSize: '12px', color: '#666' }}>{s.note}</div>
+                              </div>
+                           ))}
                         </div>
-                      ))}
-                    </div>
-                    <div style={{ background: 'white', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
-                      <h3 style={{ fontSize: '16px', margin: '0 0 12px', color: '#333' }}>🥗 推荐食物</h3>
-                      {data.nutrition.foods.map((f, i) => (
-                        <div key={i} style={{ padding: '10px 12px', marginBottom: '6px', background: '#E8F5E9', borderRadius: '8px', fontSize: '13px', color: '#2E7D32' }}>✅ {f}</div>
-                      ))}
-                    </div>
-                    <div style={{ background: 'white', borderRadius: '16px', padding: '20px' }}>
-                      <h3 style={{ fontSize: '16px', margin: '0 0 12px', color: '#333' }}>⚠️ 注意避免</h3>
-                      {data.nutrition.avoid.map((a, i) => (
-                        <div key={i} style={{ padding: '10px 12px', marginBottom: '6px', background: '#FFEBEE', borderRadius: '8px', fontSize: '13px', color: '#C62828' }}>❌ {a}</div>
-                      ))}
-                    </div>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px' }}>
+                          <h3 style={{ fontSize: '15px', margin: '0 0 10px', color: '#2E7D32' }}>🥗 宜吃</h3>
+                          {data.guide.diet_good.map((f,i) => <div key={i} style={{ fontSize: '12px', marginBottom: '4px', color: '#555' }}>✅ {f}</div>)}
+                        </div>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px' }}>
+                          <h3 style={{ fontSize: '15px', margin: '0 0 10px', color: '#C62828' }}>❌ 忌口</h3>
+                          {data.guide.diet_bad.map((f,i) => <div key={i} style={{ fontSize: '12px', marginBottom: '4px', color: '#555' }}>🚫 {f}</div>)}
+                        </div>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px', gridColumn: '1 / -1' }}>
+                           <h3 style={{ fontSize: '15px', margin: '0 0 12px', color: '#1565C0' }}>🧘‍♀️ 运动建议</h3>
+                           <div style={{ fontSize: '13px', color: '#555', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{data.guide.exercise}</div>
+                        </div>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px', gridColumn: '1 / -1' }}>
+                           <h3 style={{ fontSize: '15px', margin: '0 0 12px', color: '#F9A825' }}>💡 生活贴士</h3>
+                           <div style={{ fontSize: '13px', color: '#555', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{data.guide.lifestyle}</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px', borderLeft: '4px solid #42A5F5' }}>
+                           <h3 style={{ fontSize: '16px', margin: '0 0 8px', color: '#1565C0' }}>{data.guide.mission}</h3>
+                        </div>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px' }}>
+                           <h3 style={{ fontSize: '15px', margin: '0 0 12px', color: '#2E7D32' }}>✅ 行动清单</h3>
+                           {data.guide.action_list.map((item, i) => (
+                             <div key={i} style={{ fontSize: '13px', marginBottom: '8px', color: '#555', paddingLeft: '16px', textIndent: '-16px' }}>• {item}</div>
+                           ))}
+                        </div>
+                        <div style={{ background: 'white', borderRadius: '16px', padding: '16px' }}>
+                           <h3 style={{ fontSize: '15px', margin: '0 0 12px', color: '#C62828' }}>❌ 禁区提醒</h3>
+                           {data.guide.avoid_list.map((item, i) => (
+                             <div key={i} style={{ fontSize: '13px', marginBottom: '8px', color: '#555', paddingLeft: '16px', textIndent: '-16px' }}>• {item}</div>
+                           ))}
+                        </div>
+                        <div style={{ background: '#FFF3E0', borderRadius: '16px', padding: '16px', border: '1px solid #FFE0B2' }}>
+                           <h3 style={{ fontSize: '15px', margin: '0 0 8px', color: '#E65100' }}>❤️ 加分项</h3>
+                           <div style={{ fontSize: '13px', color: '#EF6C00', lineHeight: 1.5 }}>{data.guide.bonus}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                <div style={{ marginTop: '24px', padding: '16px', background: '#FFF8E1', borderRadius: '12px', fontSize: '12px', color: '#8D6E63', lineHeight: 1.6 }}>
-                  ⚠️ <strong>免责声明：</strong>本时间表仅供参考，具体检查时间请遵照医嘱。不同医院流程可能有差异。
-                </div>
-                <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '12px', color: '#999' }}>Made with 💕 for all moms-to-be</div>
+                {showShare && (
+                  <div onClick={() => setShowShare(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div onClick={e => e.stopPropagation()} className="share-card-modal" style={{ background: 'white', width: '100%', maxWidth: '320px', borderRadius: '20px', overflow: 'hidden', textAlign: 'center' }}>
+                      <div style={{ padding: '40px 20px 30px', background: role === 'mom' ? '#FFF0F5' : '#E3F2FD' }}>
+                        <div style={{ fontSize: '14px', color: '#888', marginBottom: '8px' }}>{formatDate(new Date())} · 孕期打卡</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '4px', color: role === 'mom' ? '#FF6B95' : '#42A5F5' }}>
+                            <span style={{ fontSize: '60px', fontWeight: 800, lineHeight: 1 }}>{data.weekInfo.weeks}</span>
+                            <span style={{ fontSize: '20px', fontWeight: 600 }}>周</span>
+                            <span style={{ fontSize: '32px', fontWeight: 600 }}>+{data.weekInfo.days}</span>
+                        </div>
+                        <div style={{ margin: '30px auto 20px', width: '120px', height: '120px', background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '70px', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}>
+                            {data.fetal.emoji}
+                        </div>
+                        <div style={{ fontSize: '18px', color: '#333', fontWeight: 600 }}>宝宝像一个 {data.fetal.size}</div>
+                        <div style={{ fontSize: '14px', color: '#666', marginTop: '6px', background: 'rgba(255,255,255,0.6)', display: 'inline-block', padding: '4px 12px', borderRadius: '12px' }}>
+                           ✨ {data.fetal.status}
+                        </div>
+                      </div>
+                      <div style={{ padding: '24px 24px 20px' }}>
+                        <div style={{ fontSize: '15px', color: '#555', fontStyle: 'italic', lineHeight: 1.6, marginBottom: '24px' }}>“{data.quote}”</div>
+                        <div style={{ borderTop: '1px dashed #EEE', paddingTop: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
+                           <span style={{ fontSize: '32px' }}>🤰</span>
+                           <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontSize: '14px', color: role === 'mom' ? '#FF6B95' : '#42A5F5', fontWeight: 700 }}>{role === 'mom' ? '准妈妈产检时间表' : '准爸爸护航计划'}</div>
+                            <div style={{ fontSize: '12px', color: '#999', marginTop: '2px' }}>科学备孕 · 轻松待产</div>
+                           </div>
+                        </div>
+                      </div>
+                      <div style={{ background: '#333', color: 'white', padding: '12px', fontSize: '12px' }}>
+                          {role === 'mom' ? '截屏分享 · 记录好孕时光' : '截屏分享 · 记录超级奶爸'}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </React.Fragment>
-            )}
-
-            {!data && (
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#999' }}>
-                <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.5 }}>📅</div>
-                <p style={{ fontSize: '14px', margin: 0, lineHeight: 1.8 }}>输入末次月经日期<br />一键生成您的专属产检计划</p>
-              </div>
             )}
           </div>
         </div>
       );
     }
-
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
